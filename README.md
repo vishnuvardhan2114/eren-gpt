@@ -10,6 +10,10 @@ Run the following command:
 npx create-turbo@latest
 ```
 
+#code-server
+docker build -t my-code-server-image .
+docker run -d -p 8080:8080 -p 8081:8081 -v /tmp/bolty-worker:/tmp/bolty-worker my-code-server-image
+
 ## What's inside?
 
 This Turborepo includes the following packages/apps:
