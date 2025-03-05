@@ -2,8 +2,8 @@
   "name": "db",
   "module": "index.ts",
   "type": "module",
-  "exports":{
-    "./client" : "./index.ts"
+  "exports": {
+    "./client": "./index.ts"
   },
   "private": true,
   "devDependencies": {

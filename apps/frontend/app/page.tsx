@@ -1,3 +1,6 @@
+"use client";
+ 
+import React from "react";
 import { Prompt } from "@/components/Prompt";
 import { TemplateButtons } from "@/components/TemplateButtons";
 import { ProjectsDrawer } from "@/components/ProjectsDrawer";
