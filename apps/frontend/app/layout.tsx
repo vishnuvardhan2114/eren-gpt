@@ -1,4 +1,4 @@
-import { ThemeProvider } from "@/components/theme-provider"
+// import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -26,12 +26,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <ThemeProvider
+      {/* <ThemeProvider
         attribute="class"
         defaultTheme="system"
         enableSystem
         disableTransitionOnChange
-      >
+      > */}
         <ClerkProvider>
           <body
             className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -39,7 +39,7 @@ export default function RootLayout({
             {children}
           </body>
         </ClerkProvider>
-      </ThemeProvider>
+      {/* </ThemeProvider> */}
     </html>
   );
 }

@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { prismaClient } from "db/client";
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from "openai";
 import { systemPrompt } from "./systemPrompt";
 import { ArtifactProcessor } from "./parser";
 import { onFileUpdate, onShellCommand } from "./os";
@@ -10,45 +10,66 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Ensure this is set in your environment
+});
+
 app.post("/prompt", async (req, res) => {
-  const { prompt, projectId } = req.body;
-  const client = new Anthropic();
-  
-  await prismaClient.prompt.create({
-    data: {
-      content: prompt,
-      projectId,
-      type: "USER",
-    },
-  });
+  try {
+    const { prompt, projectId } = req.body;
 
-  const allPrompts = await prismaClient.prompt.findMany({
-    where: {
-      projectId,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+    // Store the user prompt in the database
+    await prismaClient.prompt.create({
+      data: {
+        content: prompt,
+        projectId,
+        type: "USER",
+      },
+    });
 
-  let artifactProcessor = new ArtifactProcessor("", (filePath, fileContent) => onFileUpdate(filePath, fileContent, projectId), (shellCommand) => onShellCommand(shellCommand, projectId));
-  let artifact = "";
+    // Retrieve all prompts for this project
+    const allPrompts = await prismaClient.prompt.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "asc" },
+    });
 
-  let response = client.messages.stream({
-    messages: allPrompts.map((p: any) => ({
+    // Convert prompt history to OpenAI's expected format
+    const messages = allPrompts.map((p: any) => ({
       role: p.type === "USER" ? "user" : "assistant",
       content: p.content,
-    })),
-    system: systemPrompt,
-    model: "claude-3-7-sonnet-20250219",
-    max_tokens: 8000,
-  }).on('text', (text) => {
-    artifactProcessor.append(text);
-    artifactProcessor.parse();
-    artifact += text;
-  })
-  .on('finalMessage', async (message) => {
-    console.log("done!");
+    }));
+
+    let artifactProcessor = new ArtifactProcessor(
+      "",
+      (filePath, fileContent) => onFileUpdate(filePath, fileContent, projectId),
+      (shellCommand) => onShellCommand(shellCommand, projectId)
+    );
+
+    let artifact = "";
+
+    // Stream OpenAI response
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      // @ts-ignore
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      max_tokens: 8000,
+      stream: true,
+    });
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
+      artifactProcessor.append(text);
+      artifactProcessor.parse();
+      artifact += text;
+
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    }
+
+    // Save AI response in the database
     await prismaClient.prompt.create({
       data: {
         content: artifact,
@@ -63,12 +84,13 @@ app.post("/prompt", async (req, res) => {
         projectId,
       },
     });
-  })
-  .on('error', (error) => {
-    console.log("error", error);
-  });
 
-  res.json({ response });
+    res.write("event: done\ndata: {}\n\n");
+    res.end();
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 app.listen(9091, () => {

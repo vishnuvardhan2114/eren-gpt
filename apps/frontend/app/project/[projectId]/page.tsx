@@ -12,21 +12,22 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { WORKER_API_URL } from "@/config";
 import { ProjectsDrawer } from "@/components/ProjectsDrawer";
 import Image from "next/image";
+import { use } from "react";
 
-
-export default function ProjectPage({ params }: { params: { projectId: string } }) {
-    const { prompts } = usePrompts(params.projectId);
-    const { actions } = useActions(params.projectId);
+export default function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = use(params); // Unwrap the params promise
+    const { prompts } = usePrompts(projectId);
+    const { actions } = useActions(projectId);
     const [prompt, setPrompt] = useState("");
     const { getToken } = useAuth();
-    const { user } = useUser()
+    const { user } = useUser();
 
     const submitPrompt = async () => {
         const token = await getToken();
         axios.post(
             `${WORKER_API_URL}/prompt`,
             {
-                projectId: params.projectId,
+                projectId: projectId,
                 prompt: prompt,
             },
             {
